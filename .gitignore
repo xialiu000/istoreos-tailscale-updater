@@ -7,3 +7,4 @@ Thumbs.db
 # scratch
 *.log
 /tmp/
+__pycache__/
