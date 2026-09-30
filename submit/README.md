@@ -45,5 +45,11 @@ iStore 上架需要往两个官方仓库各发一个 PR。本目录里的文件�
 ## 备注
 
 - iStore 目前只收 **aarch64 / x86_64**；本插件是架构无关（`Architecture: all`），放 `all/` 即可。
-- 若以后要同时支持 **apk** 版 iStoreOS，需要额外构建 `.apk` 并放到 `bin/apks/...`（目前只出了 ipk）。
 - 两个 PR 合并后，iStore 里就能搜到「Tailscale 更新」。
+
+### 为什么没有 .apk
+
+仓库里的 `.apk` 是 **APKv3（`ADB` 格式，不是 tar.gz）**，并且**由 iStore 自己的密钥签名**（固件只信任 `/etc/apk/keys/istore.pem`，`is-opkg` 还会拉取 `istore-apk.pem`）。
+第三方无法自行产出固件可验证的 `.apk`。
+
+所以本次**只提交 ipk**；若需要 apk 版，建议在 PR 里说明，由官方构建/签名，或咨询维护者。
