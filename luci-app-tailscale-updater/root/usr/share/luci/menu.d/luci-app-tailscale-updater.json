@@ -1,0 +1,13 @@
+{
+	"admin/services/tailscale-updater": {
+		"title": "Tailscale 更新",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "tailscale-updater"
+		},
+		"depends": {
+			"acl": [ "luci-app-tailscale-updater" ]
+		}
+	}
+}
