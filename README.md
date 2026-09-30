@@ -34,7 +34,7 @@ applications/app-meta-tailscale/Makefile
 
 ## 下载
 
-- 安装包：[Releases](https://github.com/<你的GitHub用户名>/istoreos-tailscale-updater/releases)（或仓库里的 `dist/luci-app-tailscale-updater_1.0.0-1_all.ipk`）
+- 安装包：[Releases](https://github.com/xialiu000/istoreos-tailscale-updater/releases)（或仓库里的 `dist/luci-app-tailscale-updater_1.0.0-1_all.ipk`）
 - 命令行脚本：[`tailscale-update.sh`](./tailscale-update.sh)
 - 图文教程：[`docs/tutorial.md`](./docs/tutorial.md)
 
@@ -48,7 +48,7 @@ applications/app-meta-tailscale/Makefile
 
 ```sh
 wget -O /usr/bin/tailscale-update \
-  https://raw.githubusercontent.com/<你的GitHub用户名>/istoreos-tailscale-updater/main/tailscale-update.sh
+  https://raw.githubusercontent.com/xialiu000/istoreos-tailscale-updater/main/tailscale-update.sh
 chmod +x /usr/bin/tailscale-update
 tailscale-update --check      # 先看：已装 vs 最新
 tailscale-update -y           # 一键更新
