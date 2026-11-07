@@ -20,13 +20,13 @@ set -eu
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 NAME="luci-app-tailscale-updater"
 META_NAME="tailscale-updater"
-VERSION="1.0.0"
+VERSION="1.1.2"
 RELEASE="1"
 ARCH="all"
 TITLE_ZH="Tailscale 更新"
 TITLE_EN="Tailscale Updater"
-DESC_ZH="把 iStore 安装的 Tailscale 从 1.80.3-1 更新到官方最新稳定版，保留配置与登录状态"
-DESC_EN="Update the iStore-installed Tailscale from 1.80.3-1 to the latest upstream stable release, keeping config and login state."
+DESC_ZH="自动识别旧版 Tailscale（1.80.3-1）与「Tailscale（社区版）」：旧版替换官方静态二进制；社区版默认走 opkg/apk，也可切换为官方静态包；支持每天自动检查更新，保留配置与登录状态"
+DESC_EN="Auto-detects the legacy Tailscale (1.80.3-1) and the Tailscale community package: static binaries for the legacy app, opkg/apk by default for the community edition, with an option to switch to official static binaries. Includes an optional daily auto-update."
 # Opening the app (from iStore or the LuCI menu) should land on the status /
 # "check update" page by default. The update itself is triggered by the button
 # on that page (or via ?run=1 if you ever want a direct one-tap entry).
