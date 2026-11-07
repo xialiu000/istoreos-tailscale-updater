@@ -62,11 +62,11 @@ applications/app-meta-tailscale/Makefile
 | `luci-app-tailscale-updater/` | LuCI / iStore 商店版源码（菜单项 + 页内“一键更新”） |
 | `app-meta-tailscale-updater/` | iStore 目录元包 Makefile（要进 iStore 列表用） |
 | `build-ipk.sh` | **不用 SDK** 直接打出可安装的 `.ipk` |
-| `dist/luci-app-tailscale-updater_1.1.2-1_all.ipk` | 已构建好的安装包 |
+| `dist/luci-app-tailscale-updater_1.1.3-1_all.ipk` | 已构建好的安装包 |
 
 ## 下载
 
-- 安装包：[Releases](https://github.com/xialiu000/istoreos-tailscale-updater/releases)（或仓库里的 `dist/luci-app-tailscale-updater_1.1.2-1_all.ipk`）
+- 安装包：[Releases](https://github.com/xialiu000/istoreos-tailscale-updater/releases)（或仓库里的 `dist/luci-app-tailscale-updater_1.1.3-1_all.ipk`）
 - 命令行脚本：[`tailscale-update.sh`](./tailscale-update.sh)
 - 图文教程：[`docs/tutorial.md`](./docs/tutorial.md)
 
@@ -123,8 +123,8 @@ tailscale-update --official           # 本次强制走官方静态包
 # 生成 dist/ 下的两个包（本仓库已构建好）
 ./build-ipk.sh
 
-scp dist/luci-app-tailscale-updater_1.1.2-1_all.ipk root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 'opkg install /tmp/luci-app-tailscale-updater_1.1.2-1_all.ipk'
+scp dist/luci-app-tailscale-updater_1.1.3-1_all.ipk root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 'opkg install /tmp/luci-app-tailscale-updater_1.1.3-1_all.ipk'
 ```
 
 > **⚠ 两种 ipk 容器格式**：

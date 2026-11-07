@@ -37,16 +37,16 @@ iStore 商店里的 **Tailscale** 应用，装的其实是 iStoreOS 固件源里
 
 ### 第 1 步：下载更新工具包
 
-从下面的地址下载 `luci-app-tailscale-updater_1.1.2-1_all.ipk`：
+从下面的地址下载 `luci-app-tailscale-updater_1.1.3-1_all.ipk`：
 
-> https://github.com/xialiu000/istoreos-tailscale-updater/raw/main/dist/luci-app-tailscale-updater_1.1.2-1_all.ipk
+> https://github.com/xialiu000/istoreos-tailscale-updater/raw/main/dist/luci-app-tailscale-updater_1.1.3-1_all.ipk
 
 ### 第 2 步：安装
 
 把 ipk 上传到路由器 `/tmp/`，然后 SSH 执行：
 
 ```sh
-opkg install /tmp/luci-app-tailscale-updater_1.1.2-1_all.ipk
+opkg install /tmp/luci-app-tailscale-updater_1.1.3-1_all.ipk
 ```
 
 > 第一次安装会自动重载 LuCI，几秒后菜单就出来了。
@@ -201,7 +201,7 @@ rm -f /tmp/luci-indexcache.*; rm -rf /tmp/luci-modulecache/; /etc/init.d/rpcd re
 
 ## 八、下载地址
 
-- 更新工具包（ipk）：https://github.com/xialiu000/istoreos-tailscale-updater/raw/main/dist/luci-app-tailscale-updater_1.1.2-1_all.ipk
+- 更新工具包（ipk）：https://github.com/xialiu000/istoreos-tailscale-updater/raw/main/dist/luci-app-tailscale-updater_1.1.3-1_all.ipk
 - 命令行脚本：https://raw.githubusercontent.com/xialiu000/istoreos-tailscale-updater/main/tailscale-update.sh
 - 项目地址：https://github.com/xialiu000/istoreos-tailscale-updater
 

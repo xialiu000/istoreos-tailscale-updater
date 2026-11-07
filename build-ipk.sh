@@ -20,12 +20,12 @@ set -eu
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 NAME="luci-app-tailscale-updater"
 META_NAME="tailscale-updater"
-VERSION="1.1.2"
+VERSION="1.1.3"
 RELEASE="1"
 ARCH="all"
 TITLE_ZH="Tailscale 更新"
 TITLE_EN="Tailscale Updater"
-DESC_ZH="自动识别旧版 Tailscale（1.80.3-1）与「Tailscale（社区版）」：旧版替换官方静态二进制；社区版默认走 opkg/apk，也可切换为官方静态包；支持每天自动检查更新，保留配置与登录状态"
+DESC_ZH="自动识别旧版 Tailscale（1.80.3-1）与「Tailscale（社区版）」：旧版替换官方静态二进制；社区版默认通过软件包管理器升级，也可切换为官方静态包；支持每天自动检查更新，保留配置与登录状态"
 DESC_EN="Auto-detects the legacy Tailscale (1.80.3-1) and the Tailscale community package: static binaries for the legacy app, opkg/apk by default for the community edition, with an option to switch to official static binaries. Includes an optional daily auto-update."
 # Opening the app (from iStore or the LuCI menu) should land on the status /
 # "check update" page by default. The update itself is triggered by the button
@@ -128,6 +128,17 @@ chmod 0755 "$CTRL/postinst"
 cat > "$CTRL/prerm" <<'EOF'
 #!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] || {
+	# stop the auto-update cron before the script disappears
+	if [ -x /usr/libexec/tailscale-update ]; then
+		/usr/libexec/tailscale-update --set-auto 0 >/dev/null 2>&1 || true
+	fi
+	if [ -f /etc/crontabs/root ]; then
+		tmp="/tmp/tailscale-updater-cron.$$"
+		grep -v 'tailscale-update --auto' /etc/crontabs/root | grep -v 'tailscale-updater auto-update' > "$tmp" 2>/dev/null || true
+		cat "$tmp" > /etc/crontabs/root
+		rm -f "$tmp"
+		/etc/init.d/cron restart >/dev/null 2>&1 || true
+	fi
 	rm -f /tmp/luci-indexcache.*
 	rm -rf /tmp/luci-modulecache/
 	/etc/init.d/rpcd reload 2>/dev/null
@@ -135,6 +146,26 @@ cat > "$CTRL/prerm" <<'EOF'
 }
 EOF
 chmod 0755 "$CTRL/prerm"
+
+# postrm is a safety net: prerm may be interrupted, or the script may already
+# be gone. Remove the cron line without touching unrelated jobs.
+cat > "$CTRL/postrm" <<'EOF'
+#!/bin/sh
+[ -n "${IPKG_INSTROOT}" ] || {
+	if [ -f /etc/crontabs/root ]; then
+		tmp="/tmp/tailscale-updater-cron.$$"
+		grep -v 'tailscale-update --auto' /etc/crontabs/root | grep -v 'tailscale-updater auto-update' > "$tmp" 2>/dev/null || true
+		cat "$tmp" > /etc/crontabs/root
+		rm -f "$tmp"
+		/etc/init.d/cron restart >/dev/null 2>&1 || true
+	fi
+	rm -f /tmp/luci-indexcache.*
+	rm -rf /tmp/luci-modulecache/
+	/etc/init.d/rpcd reload 2>/dev/null
+	exit 0
+}
+EOF
+chmod 0755 "$CTRL/postrm"
 
 # ---- inner tarballs (both are plain gzip'd tars with ./ prefixed members) --
 ( cd "$DATA" && tar --owner=0 --group=0 --numeric-owner -czf "$STAGE/data.tar.gz" . )

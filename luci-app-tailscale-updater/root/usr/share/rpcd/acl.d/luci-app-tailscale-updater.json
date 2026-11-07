@@ -1,6 +1,6 @@
 {
 	"luci-app-tailscale-updater": {
-		"description": "Grant access to the iStoreOS Tailscale updater",
+		"description": "允许访问 iStoreOS Tailscale 更新工具",
 		"read": {
 			"file": {
 				"/usr/libexec/tailscale-update": [ "list", "exec" ],

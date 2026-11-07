@@ -35,7 +35,7 @@ BASE_URL_DEFAULT="https://pkgs.tailscale.com/stable"
 BINDIR="${TS_BINDIR:-/usr/sbin}"
 INITD="${TS_INITD:-/etc/init.d/tailscale}"
 CONFDIR="${TS_CONFDIR:-/etc/tailscale}"
-BACKUP_ROOT="$CONFDIR/.update-backup"
+BACKUP_ROOT="${TS_BACKUP_DIR:-$CONFDIR/.update-backup}"
 STATE_FILE="$CONFDIR/.update-state"
 WORKDIR_OVERRIDE="${TS_WORKDIR:-}"
 NO_SERVICE="${TS_NO_SERVICE:-0}"
@@ -68,7 +68,7 @@ JSON_OUT=0
 AUTO_SET=""
 AUTO_TIME=""
 SOURCE_SET=""
-KEEP_BACKUPS=3
+KEEP_BACKUPS="${TS_KEEP_BACKUPS:-3}"
 BASE_URL="$BASE_URL_DEFAULT"
 CONNECT_TIMEOUT=20
 
@@ -130,7 +130,9 @@ Options:
       --no-hold           Do not pin the legacy packages with opkg 'hold'.
       --bindir <dir>      Binary dir (default $BINDIR).
       --workdir <dir>     Scratch dir (default: auto-picked writable dir).
-      --rollback          Restore the most recent backup and restart.
+      --backup-dir <dir>  Binary backup directory (default $BACKUP_ROOT).
+      --keep-backups <n>  Number of binary backups to keep (default $KEEP_BACKUPS).
+      --rollback          Restore an older binary backup and restart.
       --list-backups      List available backups.
       --auto              One automatic check+update (for the cron job).
       --set-auto <0|1> [HH:MM]
@@ -601,8 +603,8 @@ verify_sha() {
 	_want="$(fetch_stdout "$BASE_URL/tailscale_${_ver}_${_arch}.tgz.sha256" 2>/dev/null \
 		| grep -oE '[0-9a-fA-F]{64}' | head -n1)"
 	if [ -z "$_want" ]; then
-		warn "no checksum published; skipping verification"
-		return 0
+		err "no checksum published; refusing to install"
+		return 1
 	fi
 	if have sha256sum; then
 		_got="$(sha256sum "$_file" | awk '{print $1}')"
@@ -611,8 +613,8 @@ verify_sha() {
 	elif have openssl; then
 		_got="$(openssl dgst -sha256 "$_file" | awk '{print $NF}')"
 	else
-		warn "no sha256 tool; skipping verification"
-		return 0
+		err "no sha256 tool; refusing to install"
+		return 1
 	fi
 	_want="$(printf '%s' "$_want" | tr 'A-F' 'a-f')"
 	_got="$(printf '%s' "$_got" | tr 'A-F' 'a-f')"
@@ -659,9 +661,10 @@ service_health() {
 	[ -x "$INITD" ] || return 0
 	if "$INITD" status 2>/dev/null | grep -q running; then
 		info "service is running"
-	else
-		warn "service is not running; run '$INITD status' and check logs"
+		return 0
 	fi
+	warn "service is not running; run '$INITD status' and check logs"
+	return 1
 }
 
 hold_package() {
@@ -707,6 +710,25 @@ hold_package() {
 # =========================================================================
 # backup / restore
 # =========================================================================
+ensure_backup_space() {
+	mkdir -p "$BACKUP_ROOT" || die "cannot create backup dir $BACKUP_ROOT"
+	_need_kb=0
+	for _bf in "$BINDIR/tailscaled" "$BINDIR/tailscale"; do
+		[ -f "$_bf" ] || continue
+		_sz="$(wc -c < "$_bf" 2>/dev/null || echo 0)"
+		_need_kb=$(( _need_kb + _sz / 1024 ))
+	done
+	[ "$_need_kb" -gt 0 ] || _need_kb=2048
+	_need_kb=$(( _need_kb + _need_kb / 5 + 1024 ))
+	_avail="$(df -k "$BACKUP_ROOT" 2>/dev/null | awk 'NR==2{print $4}')"
+	if [ -n "$_avail" ] && [ "$_avail" -lt "$_need_kb" ]; then
+		err "not enough space in $BACKUP_ROOT (need ${_need_kb}KB, available ${_avail}KB)"
+		err "use --backup-dir on a data volume, or lower --keep-backups"
+		return 1
+	fi
+	return 0
+}
+
 verify_backup_file() {
 	_d="$1"; _f="$2"
 	[ -f "$_d/$_f" ] || { err "backup missing $_f"; return 1; }
@@ -720,6 +742,7 @@ verify_backup_file() {
 
 make_backup() {
 	_cur="$1"
+	ensure_backup_space || die "refusing to update without a backup"
 	_ts="$(date +%Y%m%d-%H%M%S)"
 	BACKUP_DIR="$BACKUP_ROOT/$_ts"
 	mkdir -p "$BACKUP_DIR" || die "cannot create backup dir $BACKUP_DIR"
@@ -794,6 +817,42 @@ do_list_backups() {
 	done
 }
 
+latest_binary_backup() {
+	for _lbb in $(ls -1d "$BACKUP_ROOT"/*/ 2>/dev/null | sort -r); do
+		[ -s "$_lbb/tailscaled" ] || continue
+		_lm="$(sed -n 's/^mode=//p' "$_lbb/meta" 2>/dev/null)"
+		[ "$_lm" = "pkg" ] && continue
+		printf '%s\n' "$_lbb"
+		return 0
+	done
+	return 1
+}
+
+restore_backup_dir() {
+	_rb="$1"
+	[ -n "$_rb" ] || return 1
+	_rbv="$(sed -n 's/^version=//p' "$_rb/meta" 2>/dev/null)"
+	info "restoring backup $_rb (target ${_rbv:-unknown})"
+	verify_backup_file "$_rb" tailscaled || return 1
+	if [ -f "$_rb/tailscale" ]; then
+		verify_backup_file "$_rb" tailscale || return 1
+	fi
+	service_stop
+	for _rf in tailscaled tailscale; do
+		[ -f "$_rb/$_rf" ] || continue
+		install_file "$_rb/$_rf" "$BINDIR/$_rf" 0755 || return 1
+	done
+	service_start
+	_rbv2="$(current_version 2>/dev/null || true)"
+	if [ -n "$_rbv" ] && [ "$_rbv2" != "$_rbv" ]; then
+		err "restore verification failed: running '${_rbv2:-unknown}' != backup '$_rbv'"
+		return 1
+	fi
+	ok "restored ${_rbv2:-unknown}"
+	service_health || return 1
+	return 0
+}
+
 do_rollback() {
 	need_root
 	acquire_lock
@@ -805,54 +864,17 @@ do_rollback() {
 		info "no older backup available (current $(current_version 2>/dev/null || echo unknown)); nothing to roll back"
 		return 0
 	fi
-	_want="$(sed -n 's/^version=//p' "$_b/meta" 2>/dev/null)"
-	info "rolling back from $_b (target ${_want:-unknown})"
-
-	verify_backup_file "$_b" tailscaled || die "refusing to restore corrupt backup"
-	if [ -f "$_b/tailscale" ]; then
-		verify_backup_file "$_b" tailscale || die "refusing to restore corrupt backup"
-	fi
-
-	service_stop
-	for f in tailscaled tailscale; do
-		[ -f "$_b/$f" ] || continue
-		install_file "$_b/$f" "$BINDIR/$f" 0755 || die "restore of $f failed"
-	done
-	service_start
-	_v="$(current_version 2>/dev/null)"
-	if [ -n "$_want" ] && [ "$_v" != "$_want" ]; then
-		err "rollback verification failed: running '${_v:-unknown}' != backup '$_want'"
-		service_health
+	if ! restore_backup_dir "$_b"; then
+		err "rollback failed"
 		return 1
 	fi
-	ok "rolled back to ${_v:-unknown}"
-	service_health
 	if [ "$MODE" = "rollback" ]; then
 		log ""
 		"$BINDIR/tailscale" version 2>/dev/null || true
 	fi
 }
 
-do_rollback_pkg() {
-	_b="$1"
-	_pm="$(sed -n 's/^pkg_manager=//p' "$_b/meta" 2>/dev/null)"
-	_pv="$(sed -n 's/^pkg_version=//p' "$_b/meta" 2>/dev/null)"
-	[ -n "$_pv" ] || die "package checkpoint has no version"
-	[ -n "$_pm" ] || _pm="$PKG_MGR"
-	info "package rollback: asking $_pm for tailscale $_pv"
-	service_stop
-	case "$_pm" in
-		opkg) opkg install "tailscale=$_pv" ;;
-		apk)  apk add "tailscale=$_pv" ;;
-		*)    service_start; die "unknown package manager '$_pm'" ;;
-	esac || {
-		service_start
-		die "package rollback failed (old version may no longer be in the feed); install the old .ipk manually"
-	}
-	service_start
-	_v="$(current_version 2>/dev/null)"
-	ok "rolled back to package $_pv (running ${_v:-unknown})"
-}
+
 
 # =========================================================================
 # check / update
@@ -1087,8 +1109,11 @@ do_update_static() {
 	install_file "$srcdir/tailscaled" "$BINDIR/tailscaled" 0755 || fail=1
 	[ "$fail" = 0 ] && { rm -f "$BINDIR/tailscale"; install_file "$srcdir/tailscale" "$BINDIR/tailscale" 0755 || fail=1; }
 	if [ "$fail" != 0 ]; then
-		err "install failed — rolling back"
-		do_rollback
+		err "install failed — restoring backup"
+		_restore="$(latest_binary_backup)"
+		if [ -z "$_restore" ] || ! restore_backup_dir "$_restore"; then
+			die "update failed; automatic restore failed (service may be stopped)"
+		fi
 		die "update failed; previous version restored"
 	fi
 	ok "binaries installed to $BINDIR"
@@ -1097,8 +1122,11 @@ do_update_static() {
 
 	new="$(current_version 2>/dev/null || true)"
 	if [ "$new" != "$latest" ]; then
-		err "verification failed: '$new' != '$latest' — rolling back"
-		do_rollback
+		err "verification failed: '$new' != '$latest' — restoring backup"
+		_restore="$(latest_binary_backup)"
+		if [ -z "$_restore" ] || ! restore_backup_dir "$_restore"; then
+			die "update failed; automatic restore failed (service may be stopped)"
+		fi
 		die "update failed; previous version restored"
 	fi
 	ok "now running Tailscale $new"
@@ -1173,6 +1201,8 @@ parse_args() {
 			--no-hold)       NO_HOLD=1 ;;
 			--bindir)        shift; BINDIR="${1:-}"; [ -n "$BINDIR" ] || die "--bindir needs an argument" ;;
 			--workdir)       shift; WORKDIR_OVERRIDE="${1:-}" ;;
+			--backup-dir)    shift; BACKUP_ROOT="${1:-}"; [ -n "$BACKUP_ROOT" ] || die "--backup-dir needs an argument" ;;
+			--keep-backups)  shift; KEEP_BACKUPS="${1:-}"; case "$KEEP_BACKUPS" in ''|*[!0-9]*) die "--keep-backups needs a number" ;; esac ;;
 			--rollback)      MODE="rollback" ;;
 			--list-backups)  MODE="list-backups" ;;
 			--auto)          MODE="auto" ;;

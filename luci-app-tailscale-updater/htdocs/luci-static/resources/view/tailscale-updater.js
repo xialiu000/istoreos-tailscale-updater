@@ -112,13 +112,11 @@ return view.extend({
 			this.notice(null, _('更新正在进行，完成后再回滚。'), 'warning', 8);
 			return Promise.resolve();
 		}
-		var msg = (self.state && self.state.mode === 'pkg')
-			? _('确定回滚到上一个软件包版本吗？（需要旧版本仍在软件源中）')
-			: _('确定回滚到上一个备份的 Tailscale 版本吗？');
+		var msg = _('确定回滚到上一个备份的 Tailscale 版本吗？');
 		if (!confirm(msg))
 			return Promise.resolve();
 		return this.call([ '--rollback' ]).then(function (res) {
-			self.notice(null, (res.stdout || res.stderr || '').trim(), 'info', 10);
+			self.notice(null, _('回滚完成，正在刷新状态…'), 'info', 10);
 			return self.handleCheck(new Event('click'));
 		}).catch(function (e) {
 			self.notice(null, _('回滚失败：%s').format(e.message || e), 'error', 0);
@@ -197,9 +195,9 @@ return view.extend({
 		node.appendChild(E('table', { 'class': 'table' }, [
 			this.row(_('已安装版本'), st.installed || _('未安装')),
 			this.row(_('升级方式'), st.mode === 'pkg'
-				? _('软件包管理（%s，社区版）').format(st.pkg_manager || 'opkg')
+				? _('软件包管理（社区版）')
 				: (st.mode === 'official'
-					? _('官方静态包（社区版安装，已 hold）')
+					? _('官方静态包（社区版安装，软件包已锁定）')
 					: _('静态二进制（旧版 1.80.3-1）'))),
 			this.row(st.mode === 'pkg'
 				? (candOlder ? _('软件源候选（低于已装）') : _('软件源候选'))
@@ -230,7 +228,7 @@ return view.extend({
 
 		if (st.mode === 'pkg' && candOlder)
 			node.appendChild(E('div', { 'class': 'cbi-value-description', 'style': 'margin-top:6px;color:#a60' }, [
-				_('当前 opkg 源里最高只有 %s，低于已装的 %s；要升级到更新的版本，需要先添加社区（GuNanOvO）opkg 源。')
+				_('当前软件源里最高只有 %s，低于已装的 %s；要升级到更新的版本，需要先添加社区软件源。')
 					.format(st.candidate || '?', st.installed || '?')
 			]));
 
@@ -250,7 +248,7 @@ return view.extend({
 			return E('div');
 		var self = this;
 		var sel = E('select', { 'class': 'cbi-input-select' }, [
-			E('option', { 'value': 'feed' }, [ _('社区软件包（opkg/apk）') ]),
+			E('option', { 'value': 'feed' }, [ _('社区软件包（跟随软件源）') ]),
 			E('option', { 'value': 'official' }, [ _('官方 Tailscale 静态包') ])
 		]);
 		sel.value = st.update_source === 'official' ? 'official' : 'feed';
@@ -260,7 +258,7 @@ return view.extend({
 			E('div', { 'class': 'cbi-value-field' }, [
 				sel,
 				E('div', { 'class': 'cbi-value-description' }, [
-					_('社区安装默认跟随社区软件源；选“官方静态包”会用 pkgs.tailscale.com 的最新二进制替换，并 hold 住 tailscale 包（不再随 opkg 升级）。')
+					_('社区安装默认跟随社区软件源；选“官方静态包”会用 Tailscale 官方源的最新二进制替换，并锁定 tailscale 软件包（不再随软件包管理器升级）。')
 				])
 			])
 		]);
@@ -269,8 +267,7 @@ return view.extend({
 	handleSource: function (src) {
 		var self = this;
 		return this.call([ '--set-source', src ]).then(function (res) {
-			var msg = ((res.stdout || '') + (res.stderr || '')).trim() || _('已保存');
-			self.notice(null, msg, 'info', 5);
+			self.notice(null, _('更新来源已保存'), 'info', 5);
 			return self.handleCheck(new Event('click'));
 		}).catch(function (e) {
 			self.notice(null, _('保存失败：%s').format(e.message || e), 'error', 0);
@@ -307,8 +304,7 @@ return view.extend({
 	handleAuto: function (enabled, time) {
 		var self = this;
 		return this.call([ '--set-auto', enabled ? '1' : '0', time || '03:00' ]).then(function (res) {
-			var msg = ((res.stdout || '') + (res.stderr || '')).trim() || _('已保存');
-			self.notice(null, msg, 'info', 5);
+			self.notice(null, _('自动更新设置已保存'), 'info', 5);
 			return self.handleCheck(new Event('click'));
 		}).catch(function (e) {
 			self.notice(null, _('保存失败：%s').format(e.message || e), 'error', 0);
@@ -332,7 +328,7 @@ return view.extend({
 		var view = E('div', { 'class': 'cbi-map' }, [
 			E('h2', {}, [ _('Tailscale 更新工具') ]),
 			E('div', { 'class': 'cbi-map-descr' }, [
-				_('自动识别安装方式：商店旧版 Tailscale（冻结在 1.80.3-1）替换为官方静态二进制；「Tailscale（社区版）」默认通过 opkg/apk 升级，也可在下方切换为官方静态包。两者都保留启动脚本、UCI 配置与登录状态。')
+				_('自动识别安装方式：商店旧版 Tailscale（冻结在 1.80.3-1）替换为官方静态二进制；「Tailscale（社区版）」默认通过软件包管理器升级，也可在下方切换为官方静态包。两者都保留启动脚本、UCI 配置与登录状态。')
 			]),
 			this.stateEl,
 			this.sourceEl = this.sourceSection(),
